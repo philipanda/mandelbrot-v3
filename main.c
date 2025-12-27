@@ -87,6 +87,19 @@ SDL_AppResult SDL_AppIterate(void *appstate)
     Uint64 now = SDL_GetTicksNS();
     Uint64 dt_ns = now - past;
 
+    // camera movement
+    double zoom = camera.zoom * (1 + camera.zoom_speed * dt_ns * (keyboard_states[SDL_SCANCODE_DOWN]-keyboard_states[SDL_SCANCODE_UP]));
+    camera.zoom = zoom > 0.0 ? zoom : 0.0;
+    camera.pos.r -= camera.move_speed * camera.zoom * dt_ns * keyboard_states[SDL_SCANCODE_A];
+    camera.pos.r += camera.move_speed * camera.zoom * dt_ns * keyboard_states[SDL_SCANCODE_D];
+    camera.pos.i -= camera.move_speed * camera.zoom * dt_ns * keyboard_states[SDL_SCANCODE_W];
+    camera.pos.i += camera.move_speed * camera.zoom * dt_ns * keyboard_states[SDL_SCANCODE_S];
+
+    char* c = malloc(128);
+    print_camera(&camera, c, 128);
+    SDL_Log(c);
+    free(c);
+
     // logic
     if(camera.dirty){
         const int max_iter = 50;
