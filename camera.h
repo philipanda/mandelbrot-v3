@@ -8,7 +8,7 @@ struct camera_t {
     struct complex_t pos;
     double zoom;
     double zoom_speed;
-    double max_iter;
+    unsigned int max_iter;
     double move_speed;
     bool dirty;
 };

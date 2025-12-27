@@ -1,5 +1,5 @@
 #define SDL_MAIN_USE_CALLBACKS 1
-#define DEBUG_MODE
+//#define DEBUG_MODE
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include <SDL3/SDL_gpu.h>
@@ -149,9 +149,16 @@ SDL_AppResult SDL_AppIterate(void *appstate)
         SDL_RenderClear(renderer);
         SDL_UpdateTexture(mandelbrot_texture, NULL, mandelbrot_texture_array, 4 * W);
         SDL_RenderTexture(renderer, mandelbrot_texture, NULL, NULL);
-        static char stats_buffer[256];
-        sprintf(stats_buffer, "FPS: %.2lf TICK: %.2lfms", framerate, tick_time*1e-6);
-        draw_text(stats_buffer, 0, 0);
+
+        static char ui_buffer[256];
+        sprintf(ui_buffer, 
+            "FPS: %.2lf TICK: %.2lfms\n"
+            "%dx%d PRECISION: %d\n"
+            "R: %.2e I:%.2e Zoom: %.2e\n"
+            ,framerate, tick_time*1e-6,
+            camera.pos.r, camera.pos.i, camera.zoom,
+            W,H, camera.max_iter);
+        draw_text(ui_buffer, 0, 0);
         //debug_draw_all_chars(0, 0);
         render_text(renderer);
         SDL_RenderPresent(renderer);
