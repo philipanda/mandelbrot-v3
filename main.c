@@ -1,4 +1,5 @@
-#define SDL_MAIN_USE_CALLBACKS 1 
+#define SDL_MAIN_USE_CALLBACKS 1
+//#define DEBUG_MODE
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include <SDL3/SDL_gpu.h>
@@ -6,7 +7,7 @@
 #include "mandelbrot.h"
 #include "camera.h"
 #include <stdlib.h>
-
+#include "debug.h"
 // Rendering states
 static unsigned int W = 640;
 static unsigned int H = 480;
@@ -58,12 +59,10 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
         SDL_Log("Couldn't get keyboard state array: %s", SDL_GetError());
         return SDL_APP_FAILURE;
     }
-
     camera = new_camera();
     camera.display_height=H;
     camera.display_width=W;
     camera.pos = (struct complex_t){0.0, 0.0};
-
     return SDL_APP_CONTINUE;
 }
 
@@ -95,10 +94,12 @@ SDL_AppResult SDL_AppIterate(void *appstate)
     camera.pos.i -= camera.move_speed * camera.zoom * dt_ns * keyboard_states[SDL_SCANCODE_W];
     camera.pos.i += camera.move_speed * camera.zoom * dt_ns * keyboard_states[SDL_SCANCODE_S];
 
-    char* c = malloc(128);
-    print_camera(&camera, c, 128);
-    SDL_Log(c);
-    free(c);
+    DEBUG {
+        char* c = malloc(128);
+        print_camera(&camera, c, 128);
+        SDL_Log(c);
+        free(c);
+    }
 
     // logic
     if(camera.dirty){
