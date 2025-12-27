@@ -8,10 +8,14 @@
 #include "camera.h"
 #include <stdlib.h>
 #include "debug.h"
+#include "text.h"
+#include <stdio.h>
+
+
 // Rendering states
 static unsigned int W = 640;
 static unsigned int H = 480;
-
+static double FONT_SCALE = 0.5;
 const unsigned int FPS_CAP = 60;
 const unsigned int TARGET_FRAMETIME_NS = 1e9 / FPS_CAP;
 
@@ -52,8 +56,11 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
         SDL_Log("Couldn't create texture: %s", SDL_GetError());
         return SDL_APP_FAILURE;
     }
-
     mandelbrot_texture_array = (unsigned int*)malloc(W * H * sizeof(unsigned int));
+
+    if (!init_text_ui(renderer, (int)(W*FONT_SCALE), (int)(H*FONT_SCALE))){
+        return SDL_APP_FAILURE;
+    }
 
     SDL_SetRenderLogicalPresentation(renderer, W, H, SDL_LOGICAL_PRESENTATION_LETTERBOX);
 
@@ -127,24 +134,31 @@ SDL_AppResult SDL_AppIterate(void *appstate)
         }
     }
 
-    // rendering
-    if(camera.dirty) {
-        SDL_SetRenderDrawColor(renderer, 33, 33, 33, SDL_ALPHA_OPAQUE);
-        SDL_RenderClear(renderer);
-        SDL_UpdateTexture(mandelbrot_texture, NULL, mandelbrot_texture_array, 4 * W);
-        SDL_RenderTexture(renderer, mandelbrot_texture, NULL, NULL);
-        SDL_RenderPresent(renderer);
-        camera.dirty = false;
-    }
-    Uint64 dt = SDL_GetTicksNS() - past;
+    Uint64 tick_time = (SDL_GetTicksNS() - past);
+    double framerate = 1e9/(SDL_GetTicksNS()-past);
     DEBUG{
-        SDL_Log("TICK TIME: %.2fms",dt*1e-6);
-    }
-    if (dt < TARGET_FRAMETIME_NS) {
-        SDL_DelayNS(TARGET_FRAMETIME_NS - dt);
+        SDL_Log("TICK TIME: %.2fms",tick_time*1e-6);
     }
     DEBUG {
         SDL_Log("REAL FPS: %.2f", 1e9/(SDL_GetTicksNS()-past));
+    }
+
+    // rendering
+    if(camera.dirty) {
+        SDL_SetRenderDrawColor(renderer, 33, 63, 33, SDL_ALPHA_OPAQUE);
+        SDL_RenderClear(renderer);
+        SDL_UpdateTexture(mandelbrot_texture, NULL, mandelbrot_texture_array, 4 * W);
+        SDL_RenderTexture(renderer, mandelbrot_texture, NULL, NULL);
+        static char stats_buffer[256];
+        sprintf(stats_buffer, "FPS: %.2lf TICK: %.2lfms", framerate, tick_time*1e-6);
+        draw_text(stats_buffer, 0, 0);
+        //debug_draw_all_chars(0, 0);
+        render_text(renderer);
+        SDL_RenderPresent(renderer);
+        //camera.dirty = false;
+    }
+    if (tick_time < TARGET_FRAMETIME_NS) {
+        SDL_DelayNS(TARGET_FRAMETIME_NS - tick_time);
     }
 
     past = start;
@@ -154,5 +168,7 @@ SDL_AppResult SDL_AppIterate(void *appstate)
 /* This function runs once at shutdown. */
 void SDL_AppQuit(void *appstate, SDL_AppResult result)
 {
+    free(mandelbrot_texture_array);
+    free_text_ui();
     /* SDL will clean up the window/renderer for us. */
 }
