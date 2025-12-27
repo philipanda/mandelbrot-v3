@@ -1,5 +1,5 @@
 #define SDL_MAIN_USE_CALLBACKS 1
-//#define DEBUG_MODE
+#define DEBUG_MODE
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include <SDL3/SDL_gpu.h>
@@ -11,6 +11,9 @@
 // Rendering states
 static unsigned int W = 640;
 static unsigned int H = 480;
+
+const unsigned int FPS_CAP = 60;
+const unsigned int TARGET_FRAMETIME_NS = 1e9 / FPS_CAP;
 
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
@@ -82,9 +85,9 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
 /* TICK */
 SDL_AppResult SDL_AppIterate(void *appstate)
 {
-    static Uint64 past = 0;
-    Uint64 now = SDL_GetTicksNS();
-    Uint64 dt_ns = now - past;
+    static Uint64 past = 0; // will keep the past frame time across iterations, initialized only at the start
+    Uint64 start = SDL_GetTicksNS();
+    Uint64 dt_ns = start - past;
 
     // camera movement
     double zoom = camera.zoom * (1 + camera.zoom_speed * dt_ns * (keyboard_states[SDL_SCANCODE_DOWN]-keyboard_states[SDL_SCANCODE_UP]));
@@ -94,9 +97,19 @@ SDL_AppResult SDL_AppIterate(void *appstate)
     camera.pos.i -= camera.move_speed * camera.zoom * dt_ns * keyboard_states[SDL_SCANCODE_W];
     camera.pos.i += camera.move_speed * camera.zoom * dt_ns * keyboard_states[SDL_SCANCODE_S];
 
+    camera.dirty +=
+        keyboard_states[SDL_SCANCODE_A] +
+        keyboard_states[SDL_SCANCODE_D] +
+        keyboard_states[SDL_SCANCODE_W] +
+        keyboard_states[SDL_SCANCODE_S] +
+        keyboard_states[SDL_SCANCODE_DOWN] +
+        keyboard_states[SDL_SCANCODE_UP]
+        ;
+
+
     DEBUG {
-        char* c = malloc(128);
-        print_camera(&camera, c, 128);
+        char* c = malloc(256);
+        print_camera(&camera, c, 256);
         SDL_Log(c);
         free(c);
     }
@@ -121,13 +134,20 @@ SDL_AppResult SDL_AppIterate(void *appstate)
         SDL_UpdateTexture(mandelbrot_texture, NULL, mandelbrot_texture_array, 4 * W);
         SDL_RenderTexture(renderer, mandelbrot_texture, NULL, NULL);
         SDL_RenderPresent(renderer);
-        //camera.dirty = false;
+        camera.dirty = false;
     }
-    past = now;
-    Uint64 elapsed = SDL_GetTicksNS() - now;
-    if (elapsed < 1e6) {
-        SDL_DelayNS(1e6 - elapsed);
+    Uint64 dt = SDL_GetTicksNS() - past;
+    DEBUG{
+        SDL_Log("TICK TIME: %.2fms",dt*1e-6);
     }
+    if (dt < TARGET_FRAMETIME_NS) {
+        SDL_DelayNS(TARGET_FRAMETIME_NS - dt);
+    }
+    DEBUG {
+        SDL_Log("REAL FPS: %.2f", 1e9/(SDL_GetTicksNS()-past));
+    }
+
+    past = start;
     return SDL_APP_CONTINUE;
 }
 
