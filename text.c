@@ -14,6 +14,9 @@ const char FONT[HICHAR-LOCHAR+1][FONT_HEIGHT] = {
 bool init_text_ui(SDL_Renderer *renderer, unsigned int w, unsigned int h) {
     W = w;
     H = h;
+    if(text_ui_texture){
+        SDL_free(text_ui_texture);
+    }
     text_ui_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB32, SDL_TEXTUREACCESS_STREAMING, W, H);
     if (!text_ui_texture) {
         SDL_Log("Couldn't create texture: %s", SDL_GetError());
@@ -21,6 +24,9 @@ bool init_text_ui(SDL_Renderer *renderer, unsigned int w, unsigned int h) {
     }
     SDL_SetTextureBlendMode(text_ui_texture, SDL_BLENDMODE_BLEND);
     SDL_SetTextureScaleMode(text_ui_texture, SDL_SCALEMODE_NEAREST);
+    if(text_ui_texture_array){
+        free(text_ui_texture_array);
+    }
     text_ui_texture_array = (unsigned int*)malloc(W * H * sizeof(unsigned int));
     for (unsigned i = 0; i < W * H; i++) text_ui_texture_array[i] = 0x00000000;
     return true;
