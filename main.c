@@ -82,14 +82,14 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
 /* TICK */
 SDL_AppResult SDL_AppIterate(void *appstate)
 {
-    static Uint64 past = 0; // will keep the past frame time across iterations, initialized only at the start
+    static Uint64 past_tick_start = 0; // will keep the past frame time across iterations, initialized only at the start
     static Uint64 tick_time = 0;
     static double framerate = 0;
     const Uint64 FPS_BUFFER_NS = 1e09;
     static Uint64 fps_buffer_counter_ns = 0;
     static Uint64 fps_buffer_frame_counter = 0;
-    Uint64 start = SDL_GetTicksNS();
-    Uint64 dt_ns = start - past;
+    Uint64 tick_start = SDL_GetTicksNS();
+    Uint64 dt_ns = tick_start - past_tick_start;
 
     // camera movement
     move_camera(&camera, keyboard_states, dt_ns);
@@ -116,7 +116,7 @@ SDL_AppResult SDL_AppIterate(void *appstate)
         "FPS:%6.2lf TICK:%7.2lfms\n"
         "PRECISION:%5d RES:%dx%d\n"
         "R: %10.2e I:%10.2e Zoom:%10.2e\n"
-        ,framerate, (double)(SDL_GetTicksNS() - past)*1e-6,
+        ,framerate, (double)(dt_ns)*1e-6,
         (int)(camera.max_iter), camera.display_width, camera.display_height,
         camera.pos.r, camera.pos.i, camera.zoom
     );
@@ -125,19 +125,21 @@ SDL_AppResult SDL_AppIterate(void *appstate)
     render_text(renderer);
     SDL_RenderPresent(renderer);
 
-    if (dt_ns < TARGET_FRAMETIME_NS) {
-        SDL_DelayNS(TARGET_FRAMETIME_NS - dt_ns);
+    Uint64 tick_end = SDL_GetTicksNS();
+
+    if ((tick_end-tick_start) < TARGET_FRAMETIME_NS) {
+        SDL_DelayNS(TARGET_FRAMETIME_NS - (tick_end-tick_start));
     }
-    if ((start - fps_buffer_counter_ns) < FPS_BUFFER_NS) {
+    if ((tick_start - fps_buffer_counter_ns) < FPS_BUFFER_NS) {
         ++fps_buffer_frame_counter;
     } else {
-        printf("%d\n", fps_buffer_frame_counter);
+        DEBUG{printf("%d\n", fps_buffer_frame_counter);}
         framerate = (double)fps_buffer_frame_counter / (double)(FPS_BUFFER_NS) * 1e9;
         fps_buffer_frame_counter = 0;
-        fps_buffer_counter_ns = start;
+        fps_buffer_counter_ns = tick_start;
     }
 
-    past = start;
+    past_tick_start = tick_start;
     return SDL_APP_CONTINUE;
 }
 
