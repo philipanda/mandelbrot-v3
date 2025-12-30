@@ -15,7 +15,7 @@ extern const char FONT[HICHAR-LOCHAR+1][FONT_HEIGHT*FONT_BWIDTH];
 void draw_char(char c, int x, int y);
 void draw_text(const char *text, int x, int y);
 void free_text_ui();
-bool init_text_ui(SDL_Renderer *renderer, unsigned int W, unsigned int H);
-unsigned int render_text(SDL_Renderer *renderer);
+bool init_text_ui(unsigned int W, unsigned int H);
+unsigned int render_text();
 void debug_draw_all_chars(int x, int y);
 #endif

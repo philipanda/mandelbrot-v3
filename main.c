@@ -1,15 +1,14 @@
 #define SDL_MAIN_USE_CALLBACKS 1
-//#define DEBUG_MODE
+#define DEBUG_MODE
+#define DEBUG_CAMERA
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
-#include <SDL3/SDL_gpu.h>
-#include <SDL3/SDL_vulkan.h>
-#include "mandelbrot_camera.h"
 #include <stdlib.h>
+#include <stdio.h>
+#include "mandelbrot_camera.h"
 #include "debug.h"
 #include "text.h"
-#include <stdio.h>
-
+#include "gpu.h"
 
 // Rendering states
 static unsigned int W = 640;
@@ -23,14 +22,12 @@ SDL_Renderer *renderer = NULL;
 SDL_GPUDevice *gpu = NULL;
 
 // Logic states
-struct camera_t camera;
+struct camera_t *camera;
 const bool *keyboard_states = NULL;
 
 
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 {
-    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "gpu");
-    SDL_SetHint(SDL_HINT_GPU_DRIVER, "vulkan");
     SDL_SetAppMetadata("Mandelbrot", "3.0", "dev.philipanda.mandelbrot");
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
@@ -38,31 +35,28 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
         return SDL_APP_FAILURE;
     }
 
-    if (!SDL_CreateWindowAndRenderer("Mandelbrot V3", W, H, SDL_WINDOW_RESIZABLE, &window, &renderer)) {
-        SDL_Log("Couldn't create window/renderer: %s", SDL_GetError());
-        return SDL_APP_FAILURE;
-    }
-    gpu = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, NULL, "GPU");
-    if (!gpu) {
-        SDL_Log("Couldn't create a GPU: %s", SDL_GetError());
-        return SDL_APP_FAILURE;
-    }
+    window = SDL_CreateWindow("Mandelbrot V3", W, H, SDL_WINDOW_OPENGL);
+    SDL_CHECK_ERROR(window);
+    DEBUG{SDL_Log("Window created");}
 
-    if (!init_text_ui(renderer, (int)(W*FONT_SCALE), (int)(H*FONT_SCALE))){
-        return SDL_APP_FAILURE;
-    }
+    SDL_GLContext* glcontext = InitGL(window);
+    SDL_CHECK_ERROR(glcontext);
+    DEBUG{SDL_Log("GL Initialized!");}
 
-    SDL_SetRenderLogicalPresentation(renderer, W, H, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+    SDL_CHECK_ERROR(init_text_ui((int)(W*FONT_SCALE), (int)(H*FONT_SCALE)));
+    DEBUG{SDL_Log("TextUI Initialized");}
 
     keyboard_states = SDL_GetKeyboardState(NULL);
-    if (!keyboard_states){
-        SDL_Log("Couldn't get keyboard state array: %s", SDL_GetError());
-        return SDL_APP_FAILURE;
-    }
-    camera = new_camera(renderer);
-    camera.display_height=H;
-    camera.display_width=W;
-    camera.pos = (struct complex_t){0.0, 0.0};
+    SDL_CHECK_ERROR(keyboard_states);
+    DEBUG{SDL_Log("Keyboard initialized");}
+
+    camera = init_mandelbrot();
+    SDL_CHECK_ERROR(camera);
+    camera->display_height=H;
+    camera->display_width=W;
+    camera->pos = (struct complex_t){0.0, 0.0};
+    DEBUG{SDL_Log("Mandelbrot initialized");}
+
     return SDL_APP_CONTINUE;
 }
 
@@ -92,38 +86,33 @@ SDL_AppResult SDL_AppIterate(void *appstate)
     Uint64 dt_ns = tick_start - past_tick_start;
 
     // camera movement
-    move_camera(&camera, keyboard_states, dt_ns);
+    move_camera(keyboard_states, dt_ns);
 
-    DEBUG {
+    DEBUG_C{
         char* c = malloc(256);
-        print_camera(&camera, c, 256);
+        print_camera(c, 256);
         SDL_Log(c);
         free(c);
     }
 
-    // logic
-    if(camera.dirty){
-        compute_mandelbrot(&camera);
-        camera.dirty = false;
-    }
-
     // rendering
-    SDL_SetRenderDrawColor(renderer, 33, 63, 33, SDL_ALPHA_OPAQUE);
-    SDL_RenderClear(renderer);
-    render_mandelbrot(&camera);
+    glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    render_mandelbrot();
     static char ui_buffer[256];
     sprintf(ui_buffer, 
         "FPS:%6.2lf TICK:%7.2lfms\n"
         "PRECISION:%5d RES:%dx%d\n"
         "R: %10.2e I:%10.2e Zoom:%10.2e\n"
         ,framerate, (double)(dt_ns)*1e-6,
-        (int)(camera.max_iter), camera.display_width, camera.display_height,
-        camera.pos.r, camera.pos.i, camera.zoom
+        (int)(camera->max_iter), camera->display_width, camera->display_height,
+        camera->pos.r, camera->pos.i, camera->zoom
     );
     draw_text(ui_buffer, 0, 0);
     //debug_draw_all_chars(0, 0);
-    render_text(renderer);
-    SDL_RenderPresent(renderer);
+    render_text();
+
+	SDL_GL_SwapWindow(window);
 
     Uint64 tick_end = SDL_GetTicksNS();
 
@@ -146,7 +135,7 @@ SDL_AppResult SDL_AppIterate(void *appstate)
 /* This function runs once at shutdown. */
 void SDL_AppQuit(void *appstate, SDL_AppResult result)
 {
-    free_mandelbrot_camera(camera);
+    free_mandelbrot_camera();
     free_text_ui();
     /* SDL will clean up the window/renderer for us. */
 }

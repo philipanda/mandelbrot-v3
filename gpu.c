@@ -1,20 +1,8 @@
-#define SDL_MAIN_USE_CALLBACKS 1
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_main.h>
-#include <SDL3/SDL_gpu.h>
-#include <SDL3/SDL_render.h>
-#include <SDL3/SDL_vulkan.h>
 #include <GL/glew.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#define SDL_CHECK_INIT(value) \
-do{ \
-	if ((void*)value == NULL){ \
-		SDL_Log("Error initializing %s: %s\n", #value, SDL_GetError()); \
-		return -1; \
-	} \
-}while(0);
+#include "debug.h"
 
 void CheckShaderCompilation(GLuint shader, const char* type) {
     GLint success;
@@ -65,8 +53,8 @@ const char *read_shader_file(const char* path) {
 GLuint LoadShader(const char* vertexPath, const char* fragmentPath) {
     const GLchar *vShaderCode = read_shader_file(vertexPath);
     const GLchar *fShaderCode = read_shader_file(fragmentPath);
-	SDL_CHECK_INIT(vShaderCode);
-	SDL_CHECK_INIT(fShaderCode);
+	SDL_CHECK_ERROR(vShaderCode);
+	SDL_CHECK_ERROR(fShaderCode);
     GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
 	SDL_Log("created shader\n");
     glShaderSource(vertexShader, 1, &vShaderCode, NULL);
@@ -100,23 +88,20 @@ void CheckGLError(const char* function) {
     }
 }
 
-static SDL_Window* window;
 static SDL_GLContext glcontext;
-static GLuint shaderProgram;
-    
-SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]){
-	SDL_CHECK_INIT(SDL_Init(SDL_INIT_VIDEO));
-    SDL_SetAppMetadata("Mandelbrot", "3.0", "dev.philipanda.mandelbrot");
-
+SDL_GLContext *InitGL(SDL_Window *window){
+	DEBUG{SDL_Log("Initializing GL");}
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    
-    window = SDL_CreateWindow("name", 640, 480, SDL_WINDOW_OPENGL);
-    SDL_CHECK_INIT(window);
-
+	
 	glcontext = SDL_GL_CreateContext(window);
+	if (!glcontext){
+		SDL_Log("Creating GL Context failed: %s", SDL_GetError());
+		return NULL;
+	}
 	SDL_GL_MakeCurrent(window, glcontext);
+	DEBUG{SDL_Log("GL Context created & attached");}
 
 	glewExperimental = GL_TRUE;
 	GLenum err = glewInit();
@@ -124,76 +109,22 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]){
 		SDL_Log("OpenGL failed to init %s\n", glewGetErrorString(err));
 		SDL_GL_DestroyContext(glcontext);
 		SDL_DestroyWindow(window);
-		return SDL_APP_FAILURE;
+		return NULL;
 	}
+
 	if (!SDL_GL_GetCurrentContext()) {
 		SDL_Log("No GL context");
 		exit(1);
 	}
 	SDL_Log("Renderer: %s, OpenGL Version: %s\n", glGetString(GL_RENDERER), glGetString(GL_VERSION));
-    
-  	glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	GLuint dummyVAO;
 	glGenVertexArrays(1, &dummyVAO);
 	glBindVertexArray(dummyVAO);
 
-	shaderProgram = LoadShader("mandelbrot.vert.glsl", "mandelbrot.frag.glsl");
-	if (!glIsProgram(shaderProgram)) {
-		SDL_Log("Invalid program");
-	}
-	SDL_Log("Shaders loaded!\n");
-	return 0;
+	return &glcontext;
 }
 
-SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
-{
-    switch (event->type) {
-        case SDL_EVENT_QUIT: {
-            return SDL_APP_SUCCESS;
-        }
-    }
-    if (event->type == SDL_EVENT_QUIT) {
-        return SDL_APP_SUCCESS;
-    }
-    return SDL_APP_CONTINUE;
-}
-
-static size_t frame_counter = 0;
-SDL_AppResult SDL_AppIterate(void *appstate)
-{
-	glClear(GL_COLOR_BUFFER_BIT);
-	
-	glUseProgram(shaderProgram);
-	CheckGLError("glUseProgram");
-
-	glUniform2f(glGetUniformLocation(shaderProgram, "ScreenSize"), 640.0f, 480.0f);
-	CheckGLError("glUniform1i");
-
-	glUniform2f(glGetUniformLocation(shaderProgram, "PlaneMin"), -1.5f, -2.0f);
-	CheckGLError("glUniform2f");
-
-	glUniform2f(glGetUniformLocation(shaderProgram, "PlaneMax"), 1.5f, 2.0f);
-	CheckGLError("glUniform1f");
-
-	glUniform1ui(glGetUniformLocation(shaderProgram, "MaxIter"), 50u);
-	CheckGLError("glUniform1ui");
-
-	glDrawArrays(GL_TRIANGLES, 0, 6);
-	CheckGLError("glDrawElements");
-
-	// Ensure the buffer swap happens AFTER drawing
-	SDL_GL_SwapWindow(window);
-
-	return SDL_APP_CONTINUE;
-}
-
-void SDL_AppQuit(void *appstate, SDL_AppResult result)
-{
-    SDL_GL_DestroyContext(glcontext);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-
-	SDL_DestroyWindow(window);
+void free_gpu() {
+	SDL_GL_DestroyContext(glcontext);
 }

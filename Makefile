@@ -4,14 +4,11 @@ C_FLAGS:= $(COMMON_FLAGS)
 L_FLAGS:= -lSDL3 -lGLEW -lGL
 
 SHADERS:=mandelbrot.frag.glsl mandelbrot.vert.glsl
-MODULES:= main mandelbrot_camera complex text
+MODULES:= main mandelbrot_camera complex text gpu
 OBJS := $(MODULES:%=%.o)
 SRCS := $(MODULES:%=%.c)
 
-all: mandelbrot gpu
-
-gpu: gpu.c $(SHADERS)
-	$(CC) gpu.c -o gpu $(C_FLAGS) $(L_FLAGS)
+all: mandelbrot
 
 mandelbrot: $(OBJS)
 	$(CC) $(OBJS) $(L_FLAGS) -o mandelbrot
