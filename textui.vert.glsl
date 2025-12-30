@@ -1,5 +1,5 @@
 #version 330 core
-layout(location = 0) out vec2 uv;
+out vec2 uv;
 vec2 p[6] = vec2[](vec2(-1,-1), vec2(1,-1), vec2(-1,1), vec2(-1,1), vec2(1,-1), vec2(1,1));
 vec2 t[6] = vec2[](vec2(0,0), vec2(1,0), vec2(0,1), vec2(0,1), vec2(1,0), vec2(1,1));
 
