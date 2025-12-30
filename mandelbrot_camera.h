@@ -14,6 +14,7 @@ struct camera_t {
     double max_iter;
     double max_iter_change_speed;
     double move_speed;
+    double faster_multiplier;
     bool dirty;
     bool highp;
     GLuint shader;

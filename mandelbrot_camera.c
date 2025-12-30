@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <GL/glew.h>
 #include "gpu.h"
+#include "debug.h"
 
 static struct camera_t camera;
 static GLint shader_screensize;
@@ -21,6 +22,7 @@ struct camera_t *init_mandelbrot() {
     camera.max_iter = 50;
     camera.zoom = 1.0;
     camera.zoom_speed = 1e-9;
+    camera.faster_multiplier = 2.0;
     camera.max_iter_change_speed = 1e-10;
     camera.mandelbrot_texture_array = (unsigned int*)malloc(camera.display_width * camera.display_height * sizeof(unsigned int));
     camera.shader = LoadShader("mandelbrot.vert.glsl", "mandelbrot.frag.glsl");
@@ -67,7 +69,7 @@ void print_camera(char* buf, unsigned int buf_len) {
 void render_mandelbrot() {
     struct complex_t p0 = px_to_pos(0, 0);
     struct complex_t p1 = px_to_pos(camera.display_width, camera.display_height);
-    SDL_Log("iter: %lf\n", camera.max_iter);
+    DEBUG{SDL_Log("iter: %lf\n", camera.max_iter);}
     if (camera.highp){
         glUseProgram(camera.highpshader);
         glUniform2d(shader_screensize, (double)camera.display_width, (double)camera.display_height);
@@ -84,14 +86,18 @@ void render_mandelbrot() {
 }
 
 void move_camera(const bool *keyboard_states, unsigned long dt_ns) {
-    double zoom = camera.zoom * (1 + camera.zoom_speed * dt_ns * (keyboard_states[SDL_SCANCODE_S]-keyboard_states[SDL_SCANCODE_W]));
+    double zoom_speed = keyboard_states[SDL_SCANCODE_LSHIFT] ? camera.zoom_speed * camera.faster_multiplier : camera.zoom_speed;
+    double move_speed = keyboard_states[SDL_SCANCODE_LSHIFT] ? camera.move_speed * camera.faster_multiplier : camera.move_speed;
+    double iter_speed = keyboard_states[SDL_SCANCODE_LSHIFT] ? camera.max_iter_change_speed * camera.faster_multiplier : camera.max_iter_change_speed;
+
+    double zoom = camera.zoom * (1 + zoom_speed * dt_ns * (keyboard_states[SDL_SCANCODE_S]-keyboard_states[SDL_SCANCODE_W]));
     camera.zoom = zoom > 0.0 ? zoom : 0.0;
-    double max_iter = camera.max_iter * (1 + camera.max_iter_change_speed * dt_ns * (keyboard_states[SDL_SCANCODE_Q]-keyboard_states[SDL_SCANCODE_A]));
+    double max_iter = camera.max_iter * (1 + iter_speed * dt_ns * (keyboard_states[SDL_SCANCODE_Q]-keyboard_states[SDL_SCANCODE_A]));
     camera.max_iter = max_iter > 0.0 ? max_iter : 0.0;
-    camera.pos.r -= camera.move_speed * camera.zoom * dt_ns * keyboard_states[SDL_SCANCODE_LEFT];
-    camera.pos.r += camera.move_speed * camera.zoom * dt_ns * keyboard_states[SDL_SCANCODE_RIGHT];
-    camera.pos.i += camera.move_speed * camera.zoom * dt_ns * keyboard_states[SDL_SCANCODE_UP];
-    camera.pos.i -= camera.move_speed * camera.zoom * dt_ns * keyboard_states[SDL_SCANCODE_DOWN];
+    camera.pos.r -= move_speed * camera.zoom * dt_ns * keyboard_states[SDL_SCANCODE_LEFT];
+    camera.pos.r += move_speed * camera.zoom * dt_ns * keyboard_states[SDL_SCANCODE_RIGHT];
+    camera.pos.i += move_speed * camera.zoom * dt_ns * keyboard_states[SDL_SCANCODE_UP];
+    camera.pos.i -= move_speed * camera.zoom * dt_ns * keyboard_states[SDL_SCANCODE_DOWN];
     if(keyboard_states[SDL_SCANCODE_1] && camera.highp || keyboard_states[SDL_SCANCODE_2] && !camera.highp)
         camera.highp = !camera.highp;
     camera.dirty +=
